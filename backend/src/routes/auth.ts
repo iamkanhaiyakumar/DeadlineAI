@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { google } from 'googleapis';
 import { dbService } from '../services/db.js';
 import { googleCalendarService } from '../services/googleCalendar.js';
 
@@ -29,14 +30,25 @@ router.get('/callback', async (req, res) => {
 
   try {
     const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+
+    // Fetch user profile info from Google
+    let googleUser: any = {};
+    try {
+      const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+      const userInfo = await oauth2.userinfo.get();
+      googleUser = userInfo.data;
+    } catch (err) {
+      console.error('Error fetching Google user profile:', err);
+    }
     
-    // Save tokens in Firebase user record
+    // Save tokens and profile details in Firebase user record
     const user = await dbService.getDocument('users', userId);
     const updatedUser = {
       id: userId,
-      email: user?.email || 'user@gmail.com',
-      displayName: user?.displayName || 'Demo User',
-      photoURL: user?.photoURL || 'https://lh3.googleusercontent.com/a/default-user',
+      email: googleUser.email || user?.email || 'user@gmail.com',
+      displayName: googleUser.name || user?.displayName || 'Demo User',
+      photoURL: googleUser.picture || user?.photoURL || 'https://lh3.googleusercontent.com/a/default-user',
       googleOAuthTokens: {
         accessToken: tokens.access_token || '',
         refreshToken: tokens.refresh_token || user?.googleOAuthTokens?.refreshToken || ''

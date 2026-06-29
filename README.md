@@ -1,99 +1,119 @@
 # DeadlineAI – Autonomous Multi-Agent Productivity Operating System
 
-DeadlineAI is an autonomous multi-agent productivity operating system that continuously monitors deadlines, predicts risks, coordinates specialized AI agents, and proactively helps users complete work before they miss commitments.
+DeadlineAI is an autonomous multi-agent productivity operating system designed to proactively plan, prioritize, analyze calendar conflicts, and schedule deep focus blocks using Google's Gemini LLMs and Firebase before deadlines are missed.
 
-Built using **React + TypeScript + Tailwind CSS** on the frontend, and **Node.js + Express + TypeScript** on the backend, DeadlineAI utilizes the **Google Gemini API** (via Google AI Studio) for advanced agent reasoning and **Firebase/Firestore** for secure data storage.
-
----
-
-## Key Features
-
-1. **Reasoning Coordinator Orchestrator**: Manages logical dependencies and loopback execution of agents.
-2. **7 Specialized Agents**:
-   - **Planner Agent**: Decomposes user goals into actionable subtasks.
-   - **Priority Agent**: Computes dynamic scores (Urgency, Importance, Complexity, Delays) with AI explanations.
-   - **Scheduler Agent**: Scans availability and blocks "Focus Slots" in Google Calendar.
-   - **Risk Prediction Agent**: Compares remaining work hours with calendar openings to raise alerts (Why, Why Now, Consequence).
-   - **Execution Agent**: Interfaces with focus timers (Pomodoro) to track actual task completion speeds.
-   - **Memory Agent**: Refines user profile preferences (study hours, focus fatigue) over time.
-   - **Reflection Agent**: Evaluates daily performance nightly and outputs next-day adjustments.
-3. **AI Thinking Timeline Panel**: A visual dashboard widget that exposes the background agent trace steps to the user.
-4. **Google Integrations**: Preconfigured for Firebase Authentication (Google Sign-In), Google Calendar API, and Google Tasks API.
-5. **Robust Mock Mode**: If `GEMINI_API_KEY` or Firebase environment variables are not supplied, DeadlineAI automatically runs in **Mock Mode**, providing rich rule-based simulations so the app is instantly evaluable out-of-the-box.
+*   **Live Web App (Vercel)**: [https://deadline-ai-liard.vercel.app/](https://deadline-ai-liard.vercel.app/)
+*   **Live Backend (Render)**: [https://deadlineai-p6d9.onrender.com](https://deadlineai-p6d9.onrender.com)
+*   **Built-in Presentation**: [https://deadline-ai-liard.vercel.app/presentation](https://deadline-ai-liard.vercel.app/presentation)
 
 ---
 
-## File Structure
+## 🚀 Key Features
+
+1.  **Reasoning Coordinator Orchestrator**: Manages logical dependencies and loops through agent execution pipelines.
+2.  **7 Specialized AI Agents**:
+    *   **Memory Agent**: Dynamically tracks user preferences and historical delays.
+    *   **Planner Agent**: Generates structured step-by-step subtasks from user goals.
+    *   **Priority Agent**: Calculates dynamic scores (0-100) using the Eisenhower Matrix model.
+    *   **Risk Prediction Agent**: Alerts users when required task duration exceeds calendar free slots.
+    *   **Scheduler Agent**: Allocates optimized focus blocks in empty calendar slots.
+    *   **Reflection Agent**: Performs nightly retrospective reviews of tasks and completions.
+    *   **Analytics Agent**: Computes weekly trends and workload density metrics.
+3.  **Agent Network Topography (SVG Graph)**: A real-time network visualization showing glowing active/completed agents during orchestrator runs.
+4.  **2-Way Google Calendar Sync**: Imports live events and writes focus blocks back via Google OAuth 2.0.
+5.  **Voice-Enabled Assistance**: Voice input powered by the Web Speech API with real-time interim transcription.
+6.  **Interactive Notification Center**: Dynamic drop-down panel displaying risk alerts and briefings.
+
+---
+
+## 🛠️ Google Tech Stack Used
+
+*   **Google Gemini SDK (`@google/genai`)**: Powers agent planning, prioritizing, risk assessment, and summary generation.
+*   **Firebase Firestore**: Persistent database for storing tasks, profiles, calendar caches, and traces.
+*   **Google Calendar API**: Pulls real calendar events and pushes focus slots.
+*   **Google OAuth 2.0 Identity**: Secure sign-in consent flow.
+
+---
+
+## 📁 File Structure
 
 ```text
 /
-├── frontend/                 # React + Vite + TypeScript (Tailwind & custom glassmorphism)
+├── frontend/                 # React + Vite + TypeScript (Vercel)
 │   ├── src/
-│   │   ├── components/       # TaskMatrix, AgentThinkingTimeline, FocusTimer
-│   │   ├── pages/            # Dashboard, Calendar, Copilot (AI agent log), Analytics
-│   │   ├── index.css         # Styling variables, custom scrolls and glass panel tokens
+│   │   ├── components/       # TaskMatrix, AgentThinkingTimeline, AgentGraph
+│   │   ├── pages/            # Dashboard, Calendar, Copilot, Analytics, Presentation
+│   │   ├── App.tsx           # Global Navigation, User Modal, Notification Dropdown
 │   │   └── main.tsx          # Router and QueryClient config
-├── backend/                  # Node.js + Express + TypeScript
+│   └── vercel.json           # Vercel Single-Page-App routing configuration
+├── backend/                  # Node.js + Express + TypeScript (Render/Docker)
 │   ├── src/
 │   │   ├── agents/           # Orchestrator, Planner, Priority, Scheduler, Risk, etc.
 │   │   ├── routes/           # Auth, Tasks, Calendar, Agent Copilot, Analytics
-│   │   ├── services/         # Firestore DB service with in-memory local fallback
-│   │   ├── server.ts         # Main Express server configuration
-│   └── Dockerfile            # Container configuration for Google Cloud Run
-├── firebase.json             # Hosting configs for Firebase Hosting
+│   │   ├── services/         # Firestore DB service & Google Calendar sync helpers
+│   │   └── server.ts         # Express server configuration
+│   └── Dockerfile            # Production Docker container configuration
+├── firebase.json             # Hosting configs (Firebase Hosting fallback)
 └── README.md                 # Project handbook
 ```
 
 ---
 
-## Quick Start Setup
+## 🛠️ Local Quick Start
 
-### 1. Prerequisites
-- **Node.js**: v18 or newer.
-- **Google AI Studio Key** (Optional): To run with live Gemini API intelligence.
-
-### 2. Configure Environment Variables
-Create a `.env` file in the `backend/` directory:
+### 1. Configure Env Variables
+Create a `.env` in `backend/`:
 ```env
 PORT=5000
-GEMINI_API_KEY=your_gemini_api_key_here
-FIREBASE_PROJECT_ID=your_firebase_project_id_here
+NODE_ENV=development
+GEMINI_API_KEY=your_gemini_key_here
+FIREBASE_SERVICE_ACCOUNT=your_service_account_json_block
+FIREBASE_PROJECT_ID=prepwise-b0659
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/auth/callback
+FRONTEND_URL=http://localhost:5173
 ```
-*(Note: If left empty, the application will fallback to **Mock Mode** automatically).*
 
-### 3. Install & Start Backend Server
+Create a `.env` in `frontend/`:
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_FIREBASE_API_KEY=your_firebase_key
+VITE_FIREBASE_AUTH_DOMAIN=prepwise-b0659.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=prepwise-b0659
+VITE_FIREBASE_STORAGE_BUCKET=prepwise-b0659.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=413157848448
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=G-L7LX194Z4Q
+```
+
+### 2. Run Local Servers
+Start Backend:
 ```bash
 cd backend
 npm install
 npm run dev
 ```
-The backend server runs on `http://localhost:5000`.
 
-### 4. Install & Start Frontend Client
-In a new terminal window:
+Start Frontend:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-The Vite development server will open (usually on `http://localhost:5173`).
+Open `http://localhost:5173` to test.
 
 ---
 
-## Verification & Deployment
+## 🚀 Production Deployment Details
 
-### Local Build Testing
-Ensure all TypeScript compilation passes:
-- Backend: `cd backend && npm run build`
-- Frontend: `cd frontend && npm run build`
+### Frontend (Vercel)
+1. Set Root Directory to `frontend`.
+2. Add Env variable: `VITE_API_URL` pointing to your Render backend API.
+3. Deploy!
 
-### Cloud Deployment
-1. **Backend**: Build and deploy the Docker container to **Google Cloud Run**:
-   ```bash
-   gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/deadlineai-backend backend/
-   gcloud run deploy deadlineai-backend --image gcr.io/YOUR_PROJECT_ID/deadlineai-backend --platform managed
-   ```
-2. **Frontend**: Deploy static files to **Firebase Hosting**:
-   ```bash
-   firebase deploy --only hosting
-   ```
+### Backend (Render)
+1. Add new Web Service using Docker environment.
+2. Set Root Directory to `backend` and Dockerfile path to `Dockerfile`.
+3. Add all variables from `backend/.env`.
+4. Deploy!

@@ -12,13 +12,15 @@ import {
   LogOut, 
   Link2,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles
 } from 'lucide-react'
 
 import Dashboard from './pages/Dashboard.tsx'
 import Calendar from './pages/Calendar.tsx'
 import Copilot from './pages/Copilot.tsx'
 import Analytics from './pages/Analytics.tsx'
+import Presentation from './pages/Presentation.tsx'
 
 function SidebarLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -42,7 +44,8 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'AI Copilot', path: '/copilot', icon: MessageSquare },
     { name: 'Calendar', path: '/calendar', icon: CalendarIcon },
-    { name: 'Analytics', path: '/analytics', icon: BarChart3 }
+    { name: 'Analytics', path: '/analytics', icon: BarChart3 },
+    { name: 'Presentation', path: '/presentation', icon: Sparkles }
   ]
 
   // Fetch session and notifications
@@ -369,6 +372,7 @@ function App() {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/copilot" element={<Copilot />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/presentation" element={<Presentation />} />
         </Routes>
       </SidebarLayout>
     </Router>
