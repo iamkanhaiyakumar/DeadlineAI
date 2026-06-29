@@ -4,6 +4,18 @@ import { dbService } from '../services/db.js';
 
 const router = Router();
 
+// Fetch Copilot chat and trace history
+router.get('/history', async (req, res) => {
+  const userId = (req.query.userId as string) || 'mock-user-123';
+  try {
+    const history = await dbService.getCollection('copilot_history', userId);
+    const sorted = history.sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    res.json(sorted);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to fetch copilot history', message: error.message });
+  }
+});
+
 // Copilot Chat / Goal Decomposition endpoint
 router.post('/copilot', async (req, res) => {
   const { userId, message } = req.body;
@@ -16,6 +28,17 @@ router.post('/copilot', async (req, res) => {
   try {
     console.log(`>>> Agent Copilot received request for: "${message}"`);
     const result = await orchestrator.runGoalPipeline(uid, message);
+
+    // Persist this chat interaction and trace step to history
+    const id = `chat-${Math.random().toString(36).substr(2, 9)}`;
+    await dbService.createDocument('copilot_history', id, {
+      userId: uid,
+      userMessage: message,
+      agentResponse: result.message,
+      trace: result.trace || [],
+      createdAt: new Date().toISOString()
+    });
+
     res.json(result);
   } catch (error: any) {
     res.status(500).json({ error: 'Agent execution failed', message: error.message });

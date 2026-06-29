@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { dbService } from '../services/db.js';
 import { orchestrator } from '../agents/orchestrator.js';
+import { googleCalendarService } from '../services/googleCalendar.js';
 
 const router = Router();
 
@@ -8,6 +9,9 @@ const router = Router();
 router.get('/', async (req, res) => {
   const userId = (req.query.userId as string) || 'mock-user-123';
   try {
+    // Attempt real Google Calendar fetch first
+    await googleCalendarService.fetchGoogleEvents(userId).catch(console.error);
+
     const events = await dbService.getCollection('calendar_events', userId);
     res.json(events);
   } catch (error: any) {

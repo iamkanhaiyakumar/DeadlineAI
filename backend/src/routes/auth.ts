@@ -1,7 +1,59 @@
 import { Router } from 'express';
 import { dbService } from '../services/db.js';
+import { googleCalendarService } from '../services/googleCalendar.js';
 
 const router = Router();
+
+// Get Google Login redirect URL
+router.get('/google/url', (req, res) => {
+  const url = googleCalendarService.getAuthUrl();
+  if (!url) {
+    return res.status(400).json({ error: 'Google Calendar API credentials are not set on the server.' });
+  }
+  res.json({ url });
+});
+
+// Callback route from Google OAuth redirect
+router.get('/callback', async (req, res) => {
+  const code = req.query.code as string;
+  const userId = 'mock-user-123'; // Default mock user ID for simple local login
+
+  if (!code) {
+    return res.status(400).send('Authentication code is missing.');
+  }
+
+  const oauth2Client = googleCalendarService.getOAuthClient();
+  if (!oauth2Client) {
+    return res.status(500).send('Google OAuth client configuration missing.');
+  }
+
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    
+    // Save tokens in Firebase user record
+    const user = await dbService.getDocument('users', userId);
+    const updatedUser = {
+      id: userId,
+      email: user?.email || 'user@gmail.com',
+      displayName: user?.displayName || 'Demo User',
+      photoURL: user?.photoURL || 'https://lh3.googleusercontent.com/a/default-user',
+      googleOAuthTokens: {
+        accessToken: tokens.access_token || '',
+        refreshToken: tokens.refresh_token || user?.googleOAuthTokens?.refreshToken || ''
+      },
+      createdAt: user?.createdAt || new Date().toISOString()
+    };
+
+    await dbService.createDocument('users', userId, updatedUser);
+
+    // Redirect user back to the frontend calendar dashboard
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendUrl}/calendar?sync=success`);
+  } catch (error: any) {
+    console.error('Error exchanging Google OAuth code:', error);
+    res.status(500).send(`Authentication failed: ${error.message}`);
+  }
+});
 
 router.post('/google', async (req, res) => {
   const { idToken, googleAccessToken, googleRefreshToken, user } = req.body;

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, MessageSquare, Sparkles, BrainCircuit, Mic, MicOff, Volume2 } from 'lucide-react'
 import AgentThinkingTimeline from '../components/AgentThinkingTimeline.tsx'
+import AgentGraph from '../components/AgentGraph.tsx'
 import type { TraceStep } from '../components/AgentThinkingTimeline.tsx'
 
 // Extend window type for Web Speech API
@@ -18,29 +19,71 @@ interface ChatMessage {
 }
 
 export default function Copilot() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      sender: 'agent',
-      text: 'Hello! I am your DeadlineAI Multi-Agent Copilot. Give me a goal (e.g. "I have an interview next Monday") or speak using the 🎤 mic button — and I will coordinate all specialized agents to design your optimal work schedule.',
-      timestamp: new Date().toISOString()
-    }
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [traceSteps, setTraceSteps] = useState<TraceStep[]>([])
   const [isThinking, setIsThinking] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [voiceSupported, setVoiceSupported] = useState(false)
   const [interimText, setInterimText] = useState('')
+  const [loadingHistory, setLoadingHistory] = useState(true)
   const recognitionRef = useRef<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load Copilot conversation history from the database
+  const fetchCopilotHistory = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/agent/history')
+      if (res.ok) {
+        const historyData = await res.json()
+        if (historyData.length > 0) {
+          const formatted: ChatMessage[] = []
+          historyData.forEach((item: any) => {
+            formatted.push({
+              sender: 'user',
+              text: item.userMessage,
+              timestamp: item.createdAt
+            })
+            formatted.push({
+              sender: 'agent',
+              text: item.agentResponse,
+              timestamp: item.createdAt
+            })
+          })
+          setMessages(formatted)
+
+          // Load the latest trace from the most recent run
+          const latestItem = historyData[historyData.length - 1]
+          if (latestItem.trace) {
+            setTraceSteps(latestItem.trace)
+          }
+        } else {
+          // Default greeting if history is empty
+          setMessages([
+            {
+              sender: 'agent',
+              text: 'Hello! I am your DeadlineAI Multi-Agent Copilot. Give me a goal (e.g. "I have an interview next Monday") or speak using the 🎤 mic button — and I will coordinate all specialized agents to design your optimal work schedule.',
+              timestamp: new Date().toISOString()
+            }
+          ])
+        }
+      }
+    } catch (err) {
+      console.error('Error loading chat history:', err)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
 
   // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isThinking])
 
-  // Initialize Speech Recognition
+  // Initialize and load
   useEffect(() => {
+    fetchCopilotHistory()
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (SpeechRecognition) {
       setVoiceSupported(true)
@@ -146,7 +189,7 @@ export default function Copilot() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto flex flex-col gap-4" style={{ height: 'calc(100vh - 120px)' }}>
+    <div className="max-w-7xl mx-auto flex flex-col gap-4 h-auto xl:h-[calc(100vh-120px)] min-h-0">
       <div>
         <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
           AI Copilot Hub
@@ -154,10 +197,10 @@ export default function Copilot() {
         <p className="text-slate-400 text-sm mt-1">Talk or type to the Orchestrator. Watch agents reason in real time.</p>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-4 min-h-0">
+      <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-4 min-h-0 overflow-visible xl:overflow-hidden">
 
         {/* Chat panel */}
-        <div className="xl:col-span-2 glass-panel rounded-2xl flex flex-col min-h-0" style={{ minHeight: '400px' }}>
+        <div className="xl:col-span-2 glass-panel rounded-2xl flex flex-col min-h-0 h-[500px] xl:h-full">
           {/* Header */}
           <div className="px-5 py-3 border-b border-slate-800/80 bg-slate-900/20 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
@@ -180,20 +223,27 @@ export default function Copilot() {
 
           {/* Messages */}
           <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4">
-            {messages.map((msg, idx) => {
-              const isUser = msg.sender === 'user'
-              return (
-                <div key={idx} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed border ${
-                    isUser
-                      ? 'bg-purple-600 border-purple-500 text-white rounded-tr-none'
-                      : 'bg-slate-900/60 border-slate-800/80 text-slate-200 rounded-tl-none'
-                  }`}>
-                    {msg.text}
+            {loadingHistory ? (
+              <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-2" />
+                Retrieving conversation history...
+              </div>
+            ) : (
+              messages.map((msg, idx) => {
+                const isUser = msg.sender === 'user'
+                return (
+                  <div key={idx} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed border ${
+                      isUser
+                        ? 'bg-purple-600 border-purple-500 text-white rounded-tr-none'
+                        : 'bg-slate-900/60 border-slate-800/80 text-slate-200 rounded-tl-none'
+                    }`}>
+                      {msg.text}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
 
             {/* Thinking indicator */}
             {isThinking && (
@@ -255,14 +305,20 @@ export default function Copilot() {
           </form>
         </div>
 
-        {/* Agent Thinking Timeline */}
-        <div className="glass-panel p-5 rounded-2xl flex flex-col min-h-0 xl:max-h-full max-h-72 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-4 shrink-0">
-            <BrainCircuit className="w-5 h-5 text-purple-400" />
-            <span className="text-sm font-bold text-slate-200">Execution Inspector</span>
-          </div>
-          <div className="flex-1 min-h-0">
-            <AgentThinkingTimeline steps={traceSteps} isThinking={isThinking} />
+        {/* Right Sidebar: Agent Topology & Timeline */}
+        <div className="flex flex-col gap-4 xl:overflow-y-auto xl:h-full h-auto shrink-0 pb-6 xl:pb-0">
+          {/* Top: Animated Agent Network Graph */}
+          <AgentGraph steps={traceSteps} isThinking={isThinking} />
+
+          {/* Bottom: Text logs timeline */}
+          <div className="glass-panel p-5 rounded-2xl flex flex-col min-h-0 xl:max-h-[350px] overflow-y-auto bg-[#070918]/60">
+            <div className="flex items-center gap-2 mb-4 shrink-0">
+              <BrainCircuit className="w-5 h-5 text-purple-400" />
+              <span className="text-sm font-bold text-slate-200">Execution Inspector</span>
+            </div>
+            <div className="flex-1 min-h-0">
+              <AgentThinkingTimeline steps={traceSteps} isThinking={isThinking} />
+            </div>
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import { memoryAgent } from './memory.js';
 import { reflectionAgent } from './reflection.js';
 import { analyticsAgent } from './analytics.js';
 import { dbService } from '../services/db.js';
+import { aiService } from '../config/geminiConfig.js';
 
 export interface OrchestrationResult {
   message: string;
@@ -30,6 +31,27 @@ export const orchestrator = {
 
     // 1. Call Memory Agent to load context
     const memory = await memoryAgent.run(userId, trace);
+
+    // Bypassing logic for simple greetings / conversational inputs
+    const cleanGoal = goal.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+    const greetings = ['hello', 'hi', 'hey', 'yo', 'greetings', 'howdy', 'test', 'sup', 'whats up'];
+    if (greetings.includes(cleanGoal) || cleanGoal.length < 4) {
+      trace.push({
+        agentName: 'Orchestrator',
+        actionDescription: `Detected general query or greeting. Returning conversational instructions.`,
+        timestamp: new Date().toISOString(),
+        status: 'success'
+      });
+
+      return {
+        message: "Hello! I am your DeadlineAI Multi-Agent Copilot. Give me a goal (e.g. 'I need to write study notes for my exam' or 'I have a project review next week') and I will coordinate the agents to schedule and prioritize it for you.",
+        tasks: [],
+        scheduledEvents: [],
+        risks: [],
+        trace,
+        memory
+      };
+    }
 
     // 2. Call Planner Agent to decompose goal
     const plan = await plannerAgent.run(userId, goal, trace);
@@ -131,7 +153,30 @@ export const orchestrator = {
     };
     await dbService.createDocument('activity_logs', traceDoc.id, traceDoc);
 
-    const message = `I have completed the scheduling pipeline. Generated ${finalTasks.length} subtasks, analyzed risk profiles (found ${highRisks.length} high risks), and successfully allocated focus blocks on your calendar.`;
+    let message = `I have completed the scheduling pipeline. Generated ${finalTasks.length} subtasks, analyzed risk profiles (found ${highRisks.length} high risks), and successfully allocated focus blocks on your calendar.`;
+
+    if (!aiService.isMockMode()) {
+      try {
+        const ai = aiService.getClient();
+        const prompt = `You are the Orchestrator Agent in DeadlineAI.
+The user wanted to achieve this goal: "${goal}"
+Our multi-agent pipeline completed successfully:
+- Decomposed the goal into ${finalTasks.length} subtasks: ${JSON.stringify(finalTasks.map(t => t.title))}
+- Identified ${highRisks.length} high-risk tasks.
+- Booked ${scheduleInfo.scheduledEvents.length} calendar focus slots.
+
+Write a friendly, dynamic, and brief conversational response (1-3 sentences) summarizing what we did. Mention the subtasks created and reassure them about their scheduled focus blocks.
+Do NOT use JSON or markdown. Keep it friendly and concise.`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.0-flash',
+          contents: prompt
+        });
+        message = response.text.trim();
+      } catch (err) {
+        console.error('Error generating dynamic orchestrator summary:', err);
+      }
+    }
 
     return {
       message,
