@@ -30,10 +30,22 @@ export default function Copilot() {
   const recognitionRef = useRef<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  const getUserId = () => {
+    const raw = localStorage.getItem('deadlineai_user')
+    if (raw) {
+      try {
+        const u = JSON.parse(raw)
+        return u.id || 'mock-user-123'
+      } catch (e) {}
+    }
+    return 'mock-user-123'
+  }
+
   // Load Copilot conversation history from the database
   const fetchCopilotHistory = async () => {
+    const activeUid = getUserId()
     try {
-      const res = await fetch('http://localhost:5000/api/agent/history')
+      const res = await fetch(`http://localhost:5000/api/agent/history?userId=${activeUid}`)
       if (res.ok) {
         const historyData = await res.json()
         if (historyData.length > 0) {
@@ -161,10 +173,11 @@ export default function Copilot() {
     setTraceSteps([])
 
     try {
+      const activeUid = getUserId()
       const response = await fetch('http://localhost:5000/api/agent/copilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: textToSend })
+        body: JSON.stringify({ userId: activeUid, message: textToSend })
       })
       const data = await response.json()
 

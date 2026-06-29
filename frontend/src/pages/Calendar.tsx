@@ -8,9 +8,21 @@ export default function Calendar() {
   const [syncSuccess, setSyncSuccess] = useState(false)
   const [authError, setAuthError] = useState('')
 
+  const getUserId = () => {
+    const raw = localStorage.getItem('deadlineai_user')
+    if (raw) {
+      try {
+        const u = JSON.parse(raw)
+        return u.id || 'mock-user-123'
+      } catch (e) {}
+    }
+    return 'mock-user-123'
+  }
+
   const fetchCalendarEvents = async () => {
+    const activeUid = getUserId()
     try {
-      const res = await fetch('http://localhost:5000/api/calendar')
+      const res = await fetch(`http://localhost:5000/api/calendar?userId=${activeUid}`)
       const data = await res.json()
       // Sort chronologically
       const sorted = data.sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
@@ -39,11 +51,12 @@ export default function Calendar() {
   const handleSync = async () => {
     setSyncing(true)
     setAuthError('')
+    const activeUid = getUserId()
     try {
       await fetch('http://localhost:5000/api/calendar/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'mock-user-123' })
+        body: JSON.stringify({ userId: activeUid })
       })
       await fetchCalendarEvents()
     } catch (err) {

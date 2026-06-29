@@ -28,19 +28,30 @@ export default function Dashboard() {
   const [newCategory, setNewCategory] = useState('Work')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const getUserId = () => {
+    const raw = localStorage.getItem('deadlineai_user')
+    if (raw) {
+      try {
+        const u = JSON.parse(raw)
+        return u.id || 'mock-user-123'
+      } catch (e) {}
+    }
+    return 'mock-user-123'
+  }
+
   const fetchDashboardData = async () => {
+    const activeUid = getUserId()
     try {
-      // 1. Fetch Tasks
-      const tRes = await fetch('http://localhost:5000/api/tasks')
+      // 1. Fetch Tasks for current active workspace user
+      const tRes = await fetch(`http://localhost:5000/api/tasks?userId=${activeUid}`)
       const tData = await tRes.json()
       setTasks(tData)
 
       // 2. Fetch Notifications
-      const nRes = await fetch('http://localhost:5000/api/notifications')
+      const nRes = await fetch(`http://localhost:5000/api/notifications?userId=${activeUid}`)
       const nData = await nRes.json()
       setNotifications(nData)
 
-      // Find the latest daily brief notification if it exists to display on load
       const latestBrief = nData.find((n: any) => n.type === 'daily_brief')
       if (latestBrief) {
         setBriefing(latestBrief)
@@ -58,11 +69,12 @@ export default function Dashboard() {
 
   const handleGenerateBriefing = async () => {
     setGeneratingBrief(true)
+    const activeUid = getUserId()
     try {
       const res = await fetch('http://localhost:5000/api/notifications/briefing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'mock-user-123' })
+        body: JSON.stringify({ userId: activeUid })
       })
       const data = await res.json()
       setBriefing(data.notification)
@@ -94,11 +106,13 @@ export default function Dashboard() {
     if (!newTitle || !newDeadline) return
 
     setIsSubmitting(true)
+    const activeUid = getUserId()
     try {
       await fetch('http://localhost:5000/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: activeUid,
           title: newTitle,
           deadline: new Date(newDeadline).toISOString(),
           estimatedDuration: newDuration,

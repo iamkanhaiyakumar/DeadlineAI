@@ -16,10 +16,22 @@ export default function Analytics() {
   const [report, setReport] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
+  const getUserId = () => {
+    const raw = localStorage.getItem('deadlineai_user')
+    if (raw) {
+      try {
+        const u = JSON.parse(raw)
+        return u.id || 'mock-user-123'
+      } catch (e) {}
+    }
+    return 'mock-user-123'
+  }
+
   useEffect(() => {
     const fetchReport = async () => {
+      const activeUid = getUserId()
       try {
-        const res = await fetch('http://localhost:5000/api/analytics/report')
+        const res = await fetch(`http://localhost:5000/api/analytics/report?userId=${activeUid}`)
         const data = await res.json()
         setReport(data)
       } catch (err) {

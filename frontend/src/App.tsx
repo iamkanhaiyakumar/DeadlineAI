@@ -29,8 +29,8 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
   // Dynamic User state
   const [user, setUser] = useState<any>({
     id: 'mock-user-123',
-    displayName: 'Demo User',
-    email: 'prepwise.demo@gmail.com',
+    displayName: 'Guest User',
+    email: 'guest@deadlineai.io',
     googleOAuthTokens: null
   })
   const [userModalOpen, setUserModalOpen] = useState(false)
@@ -48,18 +48,49 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
     { name: 'Presentation', path: '/presentation', icon: Sparkles }
   ]
 
+  // Initialize unique session or read from localStorage
+  const initializeUser = () => {
+    const stored = localStorage.getItem('deadlineai_user')
+    if (stored) {
+      try {
+        const uObj = JSON.parse(stored)
+        setUser(uObj)
+        return uObj
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    // Default anonymous session
+    const randId = `guest-${Math.random().toString(36).substr(2, 9)}`
+    const guest = {
+      id: randId,
+      displayName: 'Guest User',
+      email: 'guest@deadlineai.io',
+      googleOAuthTokens: null
+    }
+    localStorage.setItem('deadlineai_user', JSON.stringify(guest))
+    setUser(guest)
+    return guest
+  }
+
   // Fetch session and notifications
-  const fetchSessionAndNotifications = async () => {
+  const fetchSessionAndNotifications = async (currentUserId: string) => {
     try {
-      // 1. Fetch user session
-      const uRes = await fetch(`http://localhost:5000/api/auth/session/mock-user-123`)
-      if (uRes.ok) {
-        const uData = await uRes.json()
-        if (uData.user) setUser(uData.user)
+      // 1. Fetch user session from database if logged in
+      if (currentUserId === 'mock-user-123') {
+        const uRes = await fetch(`http://localhost:5000/api/auth/session/mock-user-123`)
+        if (uRes.ok) {
+          const uData = await uRes.json()
+          if (uData.user) {
+            setUser(uData.user)
+            localStorage.setItem('deadlineai_user', JSON.stringify(uData.user))
+          }
+        }
       }
 
-      // 2. Fetch notifications
-      const nRes = await fetch(`http://localhost:5000/api/notifications?userId=mock-user-123`)
+      // 2. Fetch notifications for current user
+      const nRes = await fetch(`http://localhost:5000/api/notifications?userId=${currentUserId}`)
       if (nRes.ok) {
         const nData = await nRes.json()
         setNotifications(nData)
@@ -70,11 +101,39 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    fetchSessionAndNotifications()
-    // Poll notifications every 10 seconds to make it feel real-time/active
-    const interval = setInterval(fetchSessionAndNotifications, 10000)
+    const activeUser = initializeUser()
+    fetchSessionAndNotifications(activeUser.id)
+
+    // Poll notifications every 10 seconds
+    const interval = setInterval(() => {
+      const stored = localStorage.getItem('deadlineai_user')
+      if (stored) {
+        try {
+          const uObj = JSON.parse(stored)
+          fetchSessionAndNotifications(uObj.id)
+        } catch (e) {}
+      }
+    }, 10000)
+
     return () => clearInterval(interval)
   }, [])
+
+  // Check for successful calendar redirect sync parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('sync') === 'success') {
+      // Sync completed! Update user session to real mock-user-123 details
+      const realUser = {
+        id: 'mock-user-123',
+        displayName: 'Demo User',
+        email: 'prepwise.demo@gmail.com',
+        googleOAuthTokens: { accessToken: 'authorized' }
+      }
+      localStorage.setItem('deadlineai_user', JSON.stringify(realUser))
+      setUser(realUser)
+      fetchSessionAndNotifications('mock-user-123')
+    }
+  }, [location])
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -90,7 +149,6 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
   const markAsRead = async (id: string) => {
     try {
       await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PUT' })
-      // Update local state instantly
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
     } catch (err) {
       console.error(err)
@@ -110,6 +168,23 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
       console.error(err)
       alert('Failed to connect to authentication server.')
     }
+  }
+
+  const handleSignOut = () => {
+    // Generate a fresh random anonymous session on sign-out
+    const randId = `guest-${Math.random().toString(36).substr(2, 9)}`
+    const freshGuest = {
+      id: randId,
+      displayName: 'Guest User',
+      email: 'guest@deadlineai.io',
+      googleOAuthTokens: null
+    }
+    localStorage.setItem('deadlineai_user', JSON.stringify(freshGuest))
+    setUser(freshGuest)
+    setNotifications([])
+    setUserModalOpen(false)
+    // Redirect to home dashboard
+    window.location.href = '/'
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
@@ -181,13 +256,13 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
               <img src={user.photoURL} alt="profile" className="w-8 h-8 rounded-xl object-cover border border-slate-700 shrink-0" />
             ) : (
               <div className="w-8 h-8 rounded-xl border border-slate-700 bg-slate-800 flex items-center justify-center text-slate-400 text-xs font-bold shrink-0">
-                DU
+                {user.displayName.substring(0, 2).toUpperCase()}
               </div>
             )}
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-200 truncate">{user.displayName}</p>
               <p className="text-[10px] text-slate-500 truncate">
-                {user.googleOAuthTokens?.accessToken ? 'Linked to Google' : 'Local Sandbox Mode'}
+                {user.googleOAuthTokens ? 'Linked to Google' : 'Local Sandbox Mode'}
               </p>
             </div>
           </button>
@@ -287,6 +362,22 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
+        {/* Nudge Banner for unsigned users */}
+        {!user.googleOAuthTokens && location.pathname !== '/presentation' && (
+          <div className="bg-purple-600/10 border-b border-purple-500/20 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-purple-300 shrink-0 relative overflow-hidden">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0 animate-pulse" />
+              <span className="font-medium text-slate-300">You are in local Sandbox Mode. Link Google Calendar to sync real events and keep your tasks safe!</span>
+            </div>
+            <button 
+              onClick={handleLinkGoogle}
+              className="px-4 py-1.5 bg-purple-650 hover:bg-purple-700 text-white rounded-xl font-bold transition-all text-[10px] shrink-0 shadow-lg shadow-purple-500/10"
+            >
+              Sign In with Google
+            </button>
+          </div>
+        )}
+
         {/* Main Pages */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 xl:p-8">
           {children}
@@ -315,7 +406,7 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-slate-950/30 border border-slate-850/40 text-xs">
                 <span className="font-bold text-slate-400 block mb-1">Calendar Link Status</span>
-                {user.googleOAuthTokens?.accessToken ? (
+                {user.googleOAuthTokens ? (
                   <p className="text-emerald-400 font-semibold flex items-center gap-1.5 mt-1">
                     <CheckCircle className="w-4 h-4" />
                     Connected to Google Calendar API
@@ -341,15 +432,7 @@ function SidebarLayout({ children }: { children: React.ReactNode }) {
               </div>
 
               <button 
-                onClick={() => {
-                  setUser({
-                    id: 'mock-user-123',
-                    displayName: 'Demo User',
-                    email: 'prepwise.demo@gmail.com',
-                    googleOAuthTokens: null
-                  })
-                  setUserModalOpen(false)
-                }}
+                onClick={handleSignOut}
                 className="w-full py-2.5 rounded-xl border border-slate-800 bg-slate-900/30 hover:bg-red-500/10 hover:border-red-500/20 text-slate-400 hover:text-red-400 font-semibold transition-all text-xs flex items-center justify-center gap-2"
               >
                 <LogOut className="w-4 h-4" />
